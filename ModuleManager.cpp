@@ -13,7 +13,8 @@
 #include "IMSurfaceManagerClient.h"
 #include "Mutex.h"
 #include <cstdlib>  
-#include <dlfcn.h>  
+#include <dlfcn.h>
+#include <stdarg.h>
 
 namespace iris
 {
@@ -23,15 +24,18 @@ Mutex& AllocateLock() {
     return mutex ;
 }
 
-class ModuleLoader {
+class ModuleLoader : public virtual SmartObject {
+public:
+    typedef void* (*allocate_type)(...) ; 
 private:
-    typedef void* (*allocate_type)() ; 
+    friend class IMSurfaceManager ;
+    friend class IMWindowManager ;
     class Loader {
 		public:
         Loader(const char *szLName) : mName(szLName) , mHandle(NULL) {}
         ~Loader()  {
             if (mHandle != NULL)
-            dlclose(mHandle) ;
+                dlclose(mHandle) ;
             mHandle = NULL ;
             mAllocates.clear() ;
         }
@@ -39,12 +43,14 @@ private:
         allocate_type get(const char *szFName)  {
             if (szFName == NULL)
                 return NULL ;
-            
-            std::string fName = szFName ;
-            std::map<std::string , allocate_type>::iterator it = mAllocates.find(fName) ;
-            if (it != mAllocates.end())
-                return it->second ;
 
+            std::map<std::string , allocate_type>::iterator it = mAllocates.find(szFName) ;
+            if (it != mAllocates.end()) {
+                printf("find %s\n" , szFName) ;
+                return it->second ;
+            }
+
+            printf("not find %s\n" , szFName) ;
             allocate_type allocate ;
             if (mHandle == NULL)
                 mHandle = dlopen(mName.c_str() , RTLD_NOW) ;
@@ -52,8 +58,8 @@ private:
                 return NULL;
             allocate =  (allocate_type) dlsym(mHandle , szFName) ;
             if (allocate == NULL) 
-                return NULL ;
-            mAllocates[fName] = allocate ;
+                return NULL ;//            std::string fName = szFName ;
+            mAllocates[szFName] = allocate ;
             return allocate ;
         }
 
@@ -69,11 +75,14 @@ private:
 
 	Mutex                           mLMutex ;
 	std::map<std::string , std::shared_ptr<Loader> >  mLoaders ;
+	std::map<std::string , SmartPtr<IModule> >        mModules ;
 public:
     ModuleLoader() {
     }
 
     ~ModuleLoader() {
+        ModuleManager::singleton()->exit() ;
+        mModules.clear() ;
         mLoaders.clear() ;        
     }
 
@@ -87,42 +96,245 @@ public:
             if (it == mLoaders.end()) {
                 loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
                 mLoaders[szLName] = loader ;
+                printf("not find %s\n" , szLName) ;
             } else {
                 loader = it->second ;
+                printf("find %s\n" , szLName) ;
             }
         }
 
-        allocate_type allocate = loader->get(szFName) ;
-        if (allocate == NULL)
+        allocate_type allocator = loader->get(szFName) ;
+        if (allocator == NULL)
             return NULL ;
-        return allocate() ;
-    }  
+        return allocator() ;
+    }
+
+    template<typename T>
+	void* allocate(const char* szLName , const char *szFName , T t) {
+        if (szLName == NULL || szFName == NULL)
+            return NULL  ;
+        std::shared_ptr<Loader> loader ;
+        {
+            MutexLocker  locker(mLMutex) ;
+            std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+            if (it == mLoaders.end()) {
+                loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+                mLoaders[szLName] = loader ;
+                printf("not find %s\n" , szLName) ;
+            } else {
+                loader = it->second ;
+                printf("find %s\n" , szLName) ;
+            }
+        }
+
+        allocate_type allocator = loader->get(szFName) ;
+        if (allocator == NULL)
+            return NULL ;
+        return allocator(t) ;
+    }
+
+    template<typename T , typename U>
+	void* allocate(const char* szLName , const char *szFName , T t , U u) {
+        if (szLName == NULL || szFName == NULL)
+            return NULL  ;
+        std::shared_ptr<Loader> loader ;
+        {
+            MutexLocker  locker(mLMutex) ;
+            std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+            if (it == mLoaders.end()) {
+                loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+                mLoaders[szLName] = loader ;
+                printf("not find %s\n" , szLName) ;
+            } else {
+                loader = it->second ;
+                printf("find %s\n" , szLName) ;
+            }
+        }
+
+        allocate_type allocator = loader->get(szFName) ;
+        if (allocator == NULL)
+            return NULL ;
+        return allocator(t , u) ;
+    }
+
+    template<typename T , typename U , typename V>
+	void* allocate(const char* szLName , const char *szFName , T t , U u , V v) {
+        if (szLName == NULL || szFName == NULL)
+            return NULL  ;
+        std::shared_ptr<Loader> loader ;
+        {
+            MutexLocker  locker(mLMutex) ;
+            std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+            if (it == mLoaders.end()) {
+                loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+                mLoaders[szLName] = loader ;
+                printf("not find %s\n" , szLName) ;
+            } else {
+                loader = it->second ;
+                printf("find %s\n" , szLName) ;
+            }
+        }
+
+        allocate_type allocator = loader->get(szFName) ;
+        if (allocator == NULL)
+            return NULL ;
+        return allocator(t , u , v) ;
+    }
+
+	allocate_type get(const char* szLName , const char *szFName) {
+        if (szLName == NULL || szFName == NULL)
+            return NULL  ;
+        std::shared_ptr<Loader> loader ;
+        {
+            MutexLocker  locker(mLMutex) ;
+            std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+            if (it == mLoaders.end()) {
+                loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+                mLoaders[szLName] = loader ;
+                printf("not find %s\n" , szLName) ;
+            } else {
+                loader = it->second ;
+                printf("find %s\n" , szLName) ;
+            }
+        }
+
+        allocate_type allocator = loader->get(szFName) ;
+        if (allocator == NULL)
+            return NULL ;
+        return allocator;
+    }
+
+    IModule*  get(const char* szMName , const char* szLName , const char *szFName) {
+        if (szMName == NULL)
+            return NULL ;
+        MutexLocker  locker(AllocateLock()) ;
+        std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+        if (it != mModules.end())
+            return it->second.get();
+
+        //allocate_type allocator = get(szLName , szFName) ;
+        //SmartPtr<IModule> module = (IModule*) allocator(szLName , szFName) ;
+        SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName) ;
+        mModules[szMName] = module;
+        return module.get();
+    }
+
+    template<typename T>
+    IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t) {
+        if (szMName == NULL)
+            return NULL ;
+        MutexLocker  locker(AllocateLock()) ;
+        std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+        if (it != mModules.end())
+            return it->second.get();
+        SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t) ;
+        mModules[szMName] = module;
+        return module.get();
+    }
+
+    template<typename T , typename U>
+    IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t , U u) {
+        if (szMName == NULL)
+            return NULL ;
+        MutexLocker  locker(AllocateLock()) ;
+        std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+        if (it != mModules.end())
+            return it->second.get();
+        SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t , u) ;
+        mModules[szMName] = module;
+        return module.get();
+    }
+
+    template<typename T , typename U , typename V>
+    IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t , U u , V v) {
+        if (szMName == NULL)
+            return NULL ;
+        MutexLocker  locker(AllocateLock()) ;
+        std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+        if (it != mModules.end())
+            return it->second.get();
+        SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t , u , v) ;
+        mModules[szMName] = module;
+        return module.get();
+    }
+
+    virtual const char*  getClassName() const { return "ModuleLoader" ;}  
+
+    static SmartPtr<ModuleLoader>& singleton() {
+        static Mutex mutex ;
+        static SmartPtr<ModuleLoader> singleton ;
+        printf("ModuleLoader::singleton()\n") ;
+        if (singleton != NULL)
+            return singleton ;
+        MutexLocker  locker(mutex) ;
+        if (singleton == NULL)
+        singleton = new ModuleLoader() ;
+        printf("ModuleLoader::singleton() new\n") ;
+        return singleton ;
+    }
 } ;
 
-static ModuleLoader mLoader ;
-
-SmartPtr<IMSurfaceManager>& IMSurfaceManager::singleton()
+SmartPtr<IMSurfaceManager> IMSurfaceManager::singleton()
 {
-    static SmartPtr<IMSurfaceManager> module ;
+/*    static SmartPtr<IMSurfaceManager> module ;
     if (module != NULL)
         return module ;
     MutexLocker  locker(AllocateLock()) ;
     if (module != NULL)
-        return module ;
-    module = (IMSurfaceManager*) mLoader.allocate("libSurfaceManager.so" , "allocateSurfaceManager") ;
-    return module ;  
+        return module ;   
+    int *ptr = (int*) ModuleLoader::singleton()->allocate("libSurfaceManager.so" , "allocateINT") ;
+    printf("allocateINT  %p \n" , ptr) ;
+    delete []ptr ;
+
+    module = (IMSurfaceManager*) ModuleLoader::singleton()->allocate("libSurfaceManager.so" , "allocateSurfaceManager") ;
+
+    ptr = (int*) ModuleLoader::singleton()->allocate("libSurfaceManager.so" , "allocateINT") ;
+    printf("allocateINT  %p \n" , ptr) ;
+    delete []ptr ;
+    return module ; */
+    typedef int* (*allocate_type)() ;
+    allocate_type allocate = (allocate_type) ModuleManager::singleton()->get("libSurfaceManager.so" , "allocateINT") ;
+    int *ptr = allocate() ;
+    printf("allocateINT  %p \n" , ptr) ;
+    delete []ptr ;
+
+    ptr = (int*)ModuleManager::singleton()->allocate("libSurfaceManager.so" , "allocateInt", 1) ;
+
+    printf("allocateInt %d\n" , *ptr) ;
+    delete ptr ;
+
+    SmartPtr<IMSurfaceManager> module = dynamic_cast<IMSurfaceManager*>(ModuleManager::singleton()->get("IMSurfaceManager" , "libSurfaceManager.so" , "allocateSurfaceManager")) ;
+
+    ptr = (int*) ModuleManager::singleton()->allocate("libSurfaceManager.so" , "allocateINT") ;
+    printf("allocateINT  %p \n" , ptr) ;
+    delete []ptr ;
+
+    return module ;
 }
 
-SmartPtr<IMWindowManager>& IMWindowManager::singleton()
+SmartPtr<IMWindowManager> IMWindowManager::singleton()
 {
+/*
     static SmartPtr<IMWindowManager> module ;
     if (module != NULL)
         return module ;
     MutexLocker  locker(AllocateLock()) ;
     if (module != NULL)
         return module ;
-    module = (IMWindowManager*) mLoader.allocate("libWindowManager.so" , "allocateWindowManager") ;
-    return module ;    
+    module = (IMWindowManager*) ModuleLoader::singleton()->allocate("libWindowManager.so" , "allocateWindowManager") ;
+    */
+    typedef void* (*allocate_type)(const char *s , int n) ;
+    allocate_type allocator = (allocate_type) ModuleManager::singleton()->get("libWindowManager.so" , "allocateTest") ;
+    void *test = allocator("hello" , 1) ;
+    printf("test %p\n" , test) ;
+    delete test ;
+
+    test = ModuleManager::singleton()->allocate("libWindowManager.so" , "allocateTest" , "world" , 10000) ;
+    printf("test %p\n" , test) ;
+    delete test ;
+
+    SmartPtr<IMWindowManager> module = dynamic_cast<IMWindowManager*>(ModuleManager::singleton()->get("IMWindowManager" , "libWindowManager.so" , "allocateWindowManager")) ;
+    return module ;
 }
 
 SmartPtr<IMSurfaceManagerClient> IMSurfaceManagerClient::allocate(int nType)
@@ -135,7 +347,9 @@ SmartPtr<IMSurfaceManagerClient> IMSurfaceManagerClient::allocate(int nType)
     if (nType == 0)
        module->init() ;
     return module ; */
-    void* sm = mLoader.allocate("libSurfaceManagerClient.so", "allocateSurfaceManagerClient") ;
+    typedef IMSurfaceManagerClient* (*allocate_type)() ;
+    allocate_type allocator = (allocate_type) ModuleManager::singleton()->get("libSurfaceManagerClient.so", "allocateSurfaceManagerClient") ;
+    IMSurfaceManagerClient* sm = allocator() ;
     printf("IMSurfaceManagerClient::allocate %p \n" , sm) ;
     SmartPtr<IMSurfaceManagerClient> module((IMSurfaceManagerClient*)sm) ;
     if (nType == 0)
@@ -157,11 +371,51 @@ SmartPtr<IMModuleManager> IMModuleManager::singleton()
 /*
 **
 */
+ModuleManager::Loader::Loader(const char *szLName) : mName(szLName) , mHandle(NULL) {
+}
+
+ModuleManager::Loader::~Loader()  {
+    if (mHandle != NULL)
+        dlclose(mHandle) ;
+    mHandle = NULL ;
+    mAllocates.clear() ;
+}
+
+ModuleManager::allocate_type ModuleManager::Loader::get(const char *szFName)  {
+    if (szFName == NULL)
+        return NULL ;
+
+    std::map<std::string , allocate_type>::iterator it = mAllocates.find(szFName) ;
+    if (it != mAllocates.end()) {
+        printf("find %s\n" , szFName) ;
+        return it->second ;
+    }
+
+    printf("not find %s\n" , szFName) ;
+    allocate_type allocate ;
+    if (mHandle == NULL)
+        mHandle = dlopen(mName.c_str() , RTLD_NOW) ;
+    if (mHandle == NULL)
+        return NULL;
+    allocate =  (allocate_type) dlsym(mHandle , szFName) ;
+    if (allocate == NULL) 
+        return NULL ;//            std::string fName = szFName ;
+    mAllocates[szFName] = allocate ;
+    return allocate ;
+}
+
+const char*   ModuleManager::Loader::get() const {
+        return mName.c_str() ;
+}
+
 ModuleManager::ModuleManager()
 {}
 
 ModuleManager::~ModuleManager()
-{}
+{
+    mModules.clear() ;
+    mLoaders.clear() ;   
+}
 
 SmartPtr<ModuleManager>& ModuleManager::singleton()
 {
@@ -181,15 +435,15 @@ SmartPtr<ModuleManager>& ModuleManager::singleton()
 */
 int ModuleManager::init()
 {
-    int nCode = get(IMStatus::INIT) ;
+    int nCode = IMStatus::get(IMStatus::INIT) ;
     if (nCode != 0)
         return nCode ;   
 
     printf("ModuleManager::init()\n") ;
-    mModules.push_back(IMSurfaceManager::singleton()) ;
+    //mModules.push_back(IMSurfaceManager::singleton()) ;
     IMSurfaceManager::singleton()->init() ;
 
-    mModules.push_back(IMWindowManager::singleton()) ;
+    //mModules.push_back(IMWindowManager::singleton()) ;
     IMWindowManager::singleton()->init() ;
 
     printf("ModuleManager::init()  push IMWindowManager\n") ;
@@ -197,7 +451,7 @@ int ModuleManager::init()
     *   check IMSurfaceManager module start 
     **/
     
-    set(IMStatus::RUN) ;
+    IMStatus::set(IMStatus::RUN) ;
     return 0 ;
 }
 
@@ -206,20 +460,20 @@ int ModuleManager::init()
 */
 int ModuleManager::exit()
 {
-    int nCode = get(IMStatus::EXIT) ;
+    int nCode = IMStatus::get(IMStatus::EXIT) ;
     if (nCode != 0)
         return nCode ;   
-    printf("ModuleManager::exit()\n") ;
-    std::list<SmartPtr<IModule> >::iterator it ;
+    //printf("ModuleManager::exit()\n") ;
+    /*std::list<SmartPtr<IModule> >::iterator it ;
     for (it = mModules.begin() ; it != mModules.end() ; ++it)
-       (*it)->exit() ;
-    printf("ModuleManager::exit()  mModules  exit\n") ;
+       (*it)->exit() ;*/
+    //printf("ModuleManager::exit()  mModules  exit\n") ;
     /**
     *   check IMSurfaceManager module exit 
     **/
-    
+    mWindowManager.reset(NULL) ;
     mModules.clear() ;
-    set(IMStatus::NO) ;
+    IMStatus::set(IMStatus::NO) ;
     return 0 ;
 }
 
@@ -242,8 +496,181 @@ SmartPtr<IMWindowManager>&  ModuleManager::getWindowManager()
     MutexLocker  locker(AllocateLock()) ;
     if (mWindowManager != NULL)
         return mWindowManager ;
-    mWindowManager = (IMWindowManager*) mLoader.allocate("libWindowManager.so" , "allocateWindowManager") ;
+
+    mWindowManager = (IMWindowManager*) get("IMWindowManager" , "libWindowManager.so" , "allocateWindowManager") ;
     return mWindowManager ;   
+}
+
+void* ModuleManager::allocate(const char* szLName , const char *szFName) {
+    if (szLName == NULL || szFName == NULL)
+        return NULL  ;
+    std::shared_ptr<Loader> loader ;
+    {
+        MutexLocker  locker(mLMutex) ;
+        std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+        if (it == mLoaders.end()) {
+            loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+            mLoaders[szLName] = loader ;
+            printf("not find %s\n" , szLName) ;
+        } else {
+            loader = it->second ;
+            printf("find %s\n" , szLName) ;
+        }
+    }
+
+    allocate_type allocator = loader->get(szFName) ;
+    if (allocator == NULL)
+        return NULL ;
+    return allocator() ;
+}
+
+template<typename T>
+void* ModuleManager::allocate(const char* szLName , const char *szFName , T t) {
+    if (szLName == NULL || szFName == NULL)
+        return NULL  ;
+    std::shared_ptr<Loader> loader ;
+    {
+        MutexLocker  locker(mLMutex) ;
+        std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+        if (it == mLoaders.end()) {
+            loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+            mLoaders[szLName] = loader ;
+            printf("not find %s\n" , szLName) ;
+        } else {
+            loader = it->second ;
+            printf("find %s\n" , szLName) ;
+        }
+    }
+
+    allocate_type allocator = loader->get(szFName) ;
+    if (allocator == NULL)
+        return NULL ;
+    return allocator(t) ;
+}
+
+template<typename T , typename U>
+void* ModuleManager::allocate(const char* szLName , const char *szFName , T t , U u) {
+    if (szLName == NULL || szFName == NULL)
+        return NULL  ;
+    std::shared_ptr<Loader> loader ;
+    {
+        MutexLocker  locker(mLMutex) ;
+        std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+        if (it == mLoaders.end()) {
+            loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+            mLoaders[szLName] = loader ;
+            printf("not find %s\n" , szLName) ;
+        } else {
+            loader = it->second ;
+            printf("find %s\n" , szLName) ;
+        }
+    }
+
+    allocate_type allocator = loader->get(szFName) ;
+    if (allocator == NULL)
+        return NULL ;
+    return allocator(t , u) ;
+}
+
+template<typename T , typename U , typename V>
+void* ModuleManager::allocate(const char* szLName , const char *szFName , T t , U u , V v) {
+    if (szLName == NULL || szFName == NULL)
+        return NULL  ;
+    std::shared_ptr<Loader> loader ;
+    {
+        MutexLocker  locker(mLMutex) ;
+        std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+        if (it == mLoaders.end()) {
+            loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+            mLoaders[szLName] = loader ;
+            printf("not find %s\n" , szLName) ;
+        } else {
+            loader = it->second ;
+            printf("find %s\n" , szLName) ;
+        }
+    }
+
+    allocate_type allocator = loader->get(szFName) ;
+    if (allocator == NULL)
+        return NULL ;
+    return allocator(t , u , v) ;
+}
+
+ModuleManager::allocate_type ModuleManager::get(const char* szLName , const char *szFName) {
+    if (szLName == NULL || szFName == NULL)
+        return NULL  ;
+    std::shared_ptr<Loader> loader ;
+    {
+        MutexLocker  locker(mLMutex) ;
+        std::map<std::string , std::shared_ptr<Loader> >::iterator it = mLoaders.find(szLName) ;
+        if (it == mLoaders.end()) {
+            loader = std::shared_ptr<Loader>(new Loader(szLName)) ;
+            mLoaders[szLName] = loader ;
+            printf("not find %s\n" , szLName) ;
+        } else {
+            loader = it->second ;
+            printf("find %s\n" , szLName) ;
+        }
+    }
+
+    allocate_type allocator = loader->get(szFName) ;
+    if (allocator == NULL)
+        return NULL ;
+    return allocator;
+}
+
+IModule*  ModuleManager::get(const char* szMName , const char* szLName , const char *szFName) {
+    if (szMName == NULL)
+        return NULL ;
+    MutexLocker  locker(AllocateLock()) ;
+    std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+    if (it != mModules.end())
+        return it->second.get();
+
+    //allocate_type allocator = get(szLName , szFName) ;
+    //SmartPtr<IModule> module = (IModule*) allocator(szLName , szFName) ;
+    SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName) ;
+    mModules[szMName] = module;
+    return module.get();
+}
+
+template<typename T>
+IModule*  ModuleManager::get(const char* szMName , const char* szLName , const char *szFName , T t) {
+    if (szMName == NULL)
+        return NULL ;
+    MutexLocker  locker(AllocateLock()) ;
+    std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+    if (it != mModules.end())
+        return it->second.get();
+    SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t) ;
+    mModules[szMName] = module;
+    return module.get();
+}
+
+template<typename T , typename U>
+IModule*  ModuleManager::get(const char* szMName , const char* szLName , const char *szFName , T t , U u) {
+    if (szMName == NULL)
+        return NULL ;
+    MutexLocker  locker(AllocateLock()) ;
+    std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+    if (it != mModules.end())
+        return it->second.get();
+    SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t , u) ;
+    mModules[szMName] = module;
+    return module.get();
+}
+
+template<typename T , typename U , typename V>
+IModule*  ModuleManager::get(const char* szMName , const char* szLName , const char *szFName , T t , U u , V v) {
+    if (szMName == NULL)
+        return NULL ;
+    MutexLocker  locker(AllocateLock()) ;
+    std::map<std::string , SmartPtr<IModule> >::iterator it = mModules.find(szMName) ;
+    if (it != mModules.end())
+        return it->second.get();
+    SmartPtr<IModule> module = (IModule*) allocate(szLName , szFName , t , u , v) ;
+    mModules[szMName] = module;
+    return module.get();
 }
 
 

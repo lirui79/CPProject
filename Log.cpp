@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <fcntl.h>
 
 namespace iris
 {
@@ -64,6 +65,7 @@ namespace iris
            mkdir(mFolder , S_IRWXU) ;
 
         sprintf(mFileName , "%s/log.log" , mFolder ) ;
+        sprintf(mFileLock , "%s/log.lock" , mFolder ) ;
 
         {
             IDelegate0<Log> *pIDelegate0 = new IDelegate0<Log>(this , &Log::run) ;
@@ -120,7 +122,7 @@ namespace iris
         va_start(args , format) ; // The last argument to wvsprintf points to the arguments
         pos += vsnprintf(im->mStrLog + pos , 1024 - pos , format , args); 	//   _vsntprintf (szBuf , sizeof (szBuf) , format , pArgList) ;
         va_end(args) ;
-        im->mStrLog[pos] = '\0' ;
+        im->mStrLog[1023] = '\0' ;
         {
             MutexLocker locker(mLMutex) ;
             mLogs.push_back(im) ;
@@ -140,8 +142,13 @@ namespace iris
         if (Logs.empty())
             return 0 ;
 
+        int fd = open(mFileLock , O_RDWR | O_CREAT) ;
+        if (flock(fd , LOCK_EX|LOCK_NB) == -1) {
+            close(fd) ;
+            return 2 ;
+        }
+
         FILE *fp = fopen(mFileName , "a") ;
-        flock(fp->_fileno , LOCK_EX) ;
         for (std::list<item*>::iterator it = Logs.begin() ; it != Logs.end() ; ++it) {
             item *im = *it ;
             fprintf(fp , "%s\n" , im->mStrLog);
@@ -162,7 +169,8 @@ namespace iris
              }
         }
 
-        flock(fp->_fileno , LOCK_UN) ;
+        //flock(fd , LOCK_UN);
+        close(fd) ;
         return 0 ;
     }
 

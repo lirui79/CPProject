@@ -18,7 +18,7 @@
 
 namespace iris
 {
-class IMModuleManager : public virtual IModule
+class IMModuleManager : public IModule
 {
 protected:
 	IMModuleManager() ;

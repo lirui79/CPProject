@@ -19,7 +19,7 @@
 
 namespace iris
 {
-class IMSurfaceManager : public virtual IModule
+class IMSurfaceManager : public IModule
 {
 protected:
       IMSurfaceManager() {}
@@ -30,7 +30,7 @@ private:
       
 public:
 
-      static SmartPtr<IMSurfaceManager>& singleton() ;
+      static SmartPtr<IMSurfaceManager> singleton() ;
       
       virtual ~IMSurfaceManager() {}
 	/**

@@ -32,6 +32,7 @@ private:
     std::list<item*> mLogs ;
     char            mFolder[64] ;
     char            mFileName[256] ;
+    char            mFileLock[256] ;
     Mutex           mLMutex ;
     Event           mLEvent ;
     Mutex           mEMutex ;

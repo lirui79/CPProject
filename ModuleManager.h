@@ -22,9 +22,30 @@
 namespace iris
 {
 class ModuleManager : public IMModuleManager , public IMStatus {
+public:
+    typedef void* (*allocate_type)(...) ; 
 private:
-	std::list<SmartPtr<IModule> >   mModules;
-	SmartPtr<IMWindowManager>       mWindowManager ;
+    friend class IMSurfaceManager ;
+    friend class IMWindowManager ;
+    class Loader {
+		public:
+        Loader(const char *szLName);
+        ~Loader();
+
+        allocate_type get(const char *szFName);
+
+        const char*   get() const ;
+
+        private:
+		  std::string mName ; // so  name
+		  void*       mHandle ; // so handle
+		  std::map<std::string , allocate_type> mAllocates ; // name -> function
+	} ;
+private:
+	Mutex                           mLMutex ;
+	std::map<std::string , std::shared_ptr<Loader> >  mLoaders ;
+	std::map<std::string , SmartPtr<IModule> >        mModules ;
+	SmartPtr<IMWindowManager>                         mWindowManager ;
 private:
 	ModuleManager() ;
 
@@ -50,6 +71,31 @@ public:
 	virtual int exit() ;
 
 	SmartPtr<IMWindowManager>&  getWindowManager() ;
+
+	virtual void* allocate(const char* szLName , const char *szFName);
+
+	template<typename T>
+	void* allocate(const char* szLName , const char *szFName , T t);
+
+	template<typename T , typename U>
+	void* allocate(const char* szLName , const char *szFName , T t , U u);
+
+	template<typename T , typename U , typename V>
+	void* allocate(const char* szLName , const char *szFName , T t , U u , V v);
+
+	virtual allocate_type get(const char* szLName , const char *szFName) ;
+
+private:
+	virtual IModule*  get(const char* szMName , const char* szLName , const char *szFName);
+
+	template<typename T>
+	IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t);
+
+	template<typename T , typename U>
+	IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t , U u);
+
+	template<typename T , typename U , typename V>
+	IModule*  get(const char* szMName , const char* szLName , const char *szFName , T t , U u , V v);
 };
 
 }  // namespace iris

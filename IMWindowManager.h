@@ -18,7 +18,7 @@
 
 namespace iris
 {
-class IMWindowManager : public virtual IModule
+class IMWindowManager : public IModule
 {
 protected:
       IMWindowManager() {}
@@ -29,7 +29,7 @@ private:
 
 public:
       
-      static SmartPtr<IMWindowManager>& singleton() ;
+      static SmartPtr<IMWindowManager> singleton() ;
 
       virtual ~IMWindowManager() {}
 	/**

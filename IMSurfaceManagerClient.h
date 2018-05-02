@@ -19,7 +19,7 @@
 
 namespace iris
 {
-class IMSurfaceManagerClient : public virtual IModule
+class IMSurfaceManagerClient : public IModule
 {
 protected:
       IMSurfaceManagerClient() {}

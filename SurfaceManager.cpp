@@ -78,6 +78,18 @@ __attribute__((visibility("default"))) void*  allocateSurfaceManager()
     return (void*) iris::SurfaceManager::singleton().get();
 }
 
+__attribute__((visibility("default"))) void*  allocateINT()
+{
+    return (void*) new int[20];
+}
+
+__attribute__((visibility("default"))) void*  allocateInt(int m)
+{
+    return (void*) new int(m);
+}
+
+
+
 #if defined(__cplusplus)
 }
 #endif

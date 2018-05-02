@@ -80,6 +80,25 @@ __attribute__((visibility("default"))) void*  allocateWindowManager()
     return (void*) iris::WindowManager::singleton().get();
 }
 
+class test {
+    public:
+    test(int n , const char* s) : m(n) , str(s) {
+        printf("n %d s %s\n" , n , s) ;
+    }
+
+    ~test() {}
+
+    int m ;
+    std::string str ;
+};
+
+__attribute__((visibility("default"))) void*  allocateTest(const char* s ,  int n)
+{        
+    printf("n %d s %s\n" , n , s) ;
+    return (void*) (new test(n , s));
+}
+
+
 #if defined(__cplusplus)
 }
 #endif
