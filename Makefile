@@ -2,7 +2,10 @@ INCLUDE =  -I./
 LIBS = -L./  -lpthread -g
 SRCPATH = ./
 
-all:Log.so SurfaceManagerClient.so SurfaceManager.so  WindowManager.so ModuleManager.so main 
+all:Log.so SurfaceManagerClient.so SurfaceManager.so  WindowManager.so ModuleManager.so PropertyClient.so main 
+
+PropertyClient.so:PropertyClient.cpp SmartObject.cpp Mutex.cpp
+	g++ -std=c++11 $(INCLUDE) $(LIBS) -fPIC -shared PropertyClient.cpp SmartObject.cpp Mutex.cpp -o libPropertyClient.so
 
 SurfaceManagerClient.so:SurfaceManagerClient.cpp SmartObject.cpp Mutex.cpp
 	g++ -std=c++11 $(INCLUDE) $(LIBS) -fPIC -shared SurfaceManagerClient.cpp SmartObject.cpp Mutex.cpp -o libSurfaceManagerClient.so

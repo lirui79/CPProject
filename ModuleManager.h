@@ -27,6 +27,7 @@ public:
 private:
     friend class IMSurfaceManager ;
     friend class IMWindowManager ;
+    friend class IMPropertyClient ;
     class Loader {
 		public:
         Loader(const char *szLName);

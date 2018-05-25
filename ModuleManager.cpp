@@ -11,6 +11,7 @@
 #include "IMSurfaceManager.h"
 #include "ModuleManager.h"
 #include "IMSurfaceManagerClient.h"
+#include "IMPropertyClient.h"
 #include "Mutex.h"
 #include <cstdlib>  
 #include <dlfcn.h>
@@ -311,6 +312,16 @@ SmartPtr<IMSurfaceManager> IMSurfaceManager::singleton()
 
     return module ;
 }
+
+
+SmartPtr<IMPropertyClient> IMPropertyClient::singleton()
+{
+    typedef void* (*allocate_type)() ;
+    SmartPtr<IMPropertyClient> module = dynamic_cast<IMPropertyClient*>(ModuleManager::singleton()->get("IMPropertyClient" , "libPropertyClient.so" , "allocatePropertyClient")) ;
+    return module ;
+}
+
+
 
 SmartPtr<IMWindowManager> IMWindowManager::singleton()
 {
