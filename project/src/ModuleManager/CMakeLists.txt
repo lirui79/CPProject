@@ -1,0 +1,4 @@
+AUX_SOURCE_DIRECTORY(. DIR_MODULEMANAGER_SRCS)
+ADD_LIBRARY( ModuleManager SHARED ${DIR_MODULEMANAGER_SRCS})
+
+target_link_libraries(ModuleManager  dl)
